@@ -9,34 +9,55 @@ use super::quant::{get_flows, load_venues, Threshold};
 use crate::utilities::{
     memory_usage, print_count, progress_count, progress_count_with_msg, progress_file_with_msg,
 };
-use crate::{Activity, Household, Obesity, Person, PersonID, Population, VenueID, MSOA};
+use crate::{Activity, Household, Input, Obesity, Person, PersonID, Population, VenueID, MSOA};
 
-/// Create a population from some time-use files, only keeping people in the specified MSOAs.
-pub fn create(tus_files: Vec<String>, keep_msoas: BTreeSet<MSOA>) -> Result<Population> {
-    let mut population = Population {
-        households: Vec::new(),
-        people: Vec::new(),
-        venues_per_activity: EnumMap::default(),
-        info_per_msoa: BTreeMap::new(),
-        lockdown_per_day: Vec::new(),
-    };
-    read_individual_time_use_and_health_data(&mut population, tus_files, keep_msoas)?;
+impl Population {
+    /// Generates a Population for a given area. Only keep people belonging to the MSOAs in
+    /// `input.initial_cases_per_msoa`.
+    ///
+    /// This doesn't download or extract raw data files if they already exist.
+    pub async fn create(input: Input) -> Result<Population> {
+        let raw_results = super::raw_data::grab_raw_data(&input).await?;
 
-    setup_venue_flows(Activity::Retail, Threshold::TopN(10), &mut population)?;
-    setup_venue_flows(Activity::Nightclub, Threshold::TopN(10), &mut population)?;
-    setup_venue_flows(Activity::PrimarySchool, Threshold::TopN(5), &mut population)?;
-    setup_venue_flows(
-        Activity::SecondarySchool,
-        Threshold::TopN(5),
-        &mut population,
-    )?;
+        let mut population = Population {
+            households: Vec::new(),
+            people: Vec::new(),
+            venues_per_activity: EnumMap::default(),
+            info_per_msoa: BTreeMap::new(),
+            lockdown_per_day: Vec::new(),
+        };
 
-    // Commuting is special-cased
-    super::commuting::create_commuting_flows(&mut population)?;
+        let keep_msoas = input.initial_cases_per_msoa.keys().cloned().collect();
+        read_individual_time_use_and_health_data(
+            &mut population,
+            raw_results.tus_files,
+            keep_msoas,
+        )?;
 
-    // TODO The Python implementation has lots of commented stuff, then some rounding
+        setup_venue_flows(Activity::Retail, Threshold::TopN(10), &mut population)?;
+        setup_venue_flows(Activity::Nightclub, Threshold::TopN(10), &mut population)?;
+        setup_venue_flows(Activity::PrimarySchool, Threshold::TopN(5), &mut population)?;
+        setup_venue_flows(
+            Activity::SecondarySchool,
+            Threshold::TopN(5),
+            &mut population,
+        )?;
 
-    Ok(population)
+        // This must be done before commuting
+        population.info_per_msoa = super::msoas::get_info_per_msoa(
+            population.unique_msoas(),
+            raw_results.osm_directories,
+        )?;
+
+        super::commuting::create_commuting_flows(&mut population)?;
+
+        population.lockdown_per_day =
+            super::lockdown::calculate_lockdown_per_day(raw_results.msoas_per_county, &population)?;
+
+        // TODO The Python implementation has lots of commented stuff, then some rounding
+
+        Ok(population)
+    }
 }
 
 fn read_individual_time_use_and_health_data(
