@@ -2,3 +2,4 @@ data
 target
 *.swp
 __pycache__
+.vscode
