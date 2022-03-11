@@ -1,5 +1,6 @@
 from OpenGL.GL import *
 import os
+from ramp.constants import OPENCL_SOURCE
 
 
 def load_shader(shader_name):
@@ -11,7 +12,8 @@ def load_shader(shader_name):
     Returns:
         program: Compiled OpenGL shader program.
     """
-    shader_path = "ramp/shaders"
+    #shader_path = "ramp/shaders"
+    shader_path = os.path.join(OPENCL_SOURCE.FULL_PATH_SHADERS_FOLDER)
     vert = glCreateShader(GL_VERTEX_SHADER)
     with open(f"{shader_path}/{shader_name}.vert") as f:  # AZ: added a "/" in the path
         glShaderSource(vert, f.read())

@@ -3,11 +3,15 @@ from numpy import random
 import pyopencl as cl
 import os
 import math
+
 from ramp.buffers import Buffers
 from ramp.kernels import Kernels
 from ramp.params import Params
 from ramp.snapshot import Snapshot
 from ramp.initial_cases import InitialCases
+from ramp.constants import OPENCL_SOURCE
+
+
 
 
 class Simulator:
@@ -77,9 +81,20 @@ class Simulator:
             people_prngs=cl.Buffer(ctx, cl.mem_flags.READ_WRITE, npeople * 16),
             params=cl.Buffer(ctx, cl.mem_flags.READ_WRITE, Params().num_bytes()),
         )
-        kernel_dir = "ramp/kernels"
+
+        # **** IMPORTANT ****
+        # The following variable is used only by Simulator module
+        # OpenCL kernels are really sensible to the path provided
+        ## Specifically, you have to start from 'after' the current working directory
+        # that currently is abspath/project_folder/ (must be consistent with the  configurations)
+
+        currentpath=os.getcwd()
+        print(currentpath)
+        #kernel_dir = "ramp/kernels"
+        kernel_dir = OPENCL_SOURCE.FULL_PATH_KERNEL_FOLDER
+        print (kernel_dir)
         # Load the OpenCL kernel programs
-        with open(os.path.join(kernel_dir, "ramp_ua.cl")) as f:
+        with open(os.path.join(kernel_dir, OPENCL_SOURCE.KERNEL_FILE)) as f:
             program = cl.Program(ctx, f.read())
             program.build(options=[f"-I {kernel_dir}"])
 

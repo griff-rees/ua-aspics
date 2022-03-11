@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import click
+import os
 from ramp.loader import setup_sim
 from ramp.inspector import Inspector
 
@@ -14,7 +15,8 @@ from ramp.inspector import Inspector
 )
 def main(parameters_file):
     simulator, snapshot, study_area = setup_sim(parameters_file)
-
+    pathcrr = os.getcwd()
+    print(pathcrr)
     inspector = Inspector(
         simulator,
         snapshot,
